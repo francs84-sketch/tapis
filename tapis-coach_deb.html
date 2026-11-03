@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tapis Coach Pro + Music</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#14213d;--mute:#6b7280;--lane:#1d4ed8;--stop:#b91c1c;--line:#d9d5cb;--accent:#059669}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1626;--panel:#16233a;--ink:#eef2f8;--mute:#9aa7bd;--lane:#6ea0ff;--stop:#ef5350;--line:#2a3a57;--accent:#10b981}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif;padding:16px;max-width:800px;margin-inline:auto}
+h1,.big{font-family:"Barlow Condensed",Impact,sans-serif}
+h1{font-size:32px;margin:4px 0 12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+button,select,textarea,input{font:inherit;color:inherit}
+button{background:var(--lane);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.stop{background:var(--stop);width:100%;font-size:20px;padding:16px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--lane);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stats{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:8px;align-items:end}
+.big{font-size:64px;line-height:.9;font-weight:700}
+.mid{font-size:32px;line-height:1;font-weight:700}
+.lbl{color:var(--mute);font-size:13px}
+#tl{display:flex;align-items:flex-end;height:70px;gap:2px;margin:10px 0}
+#tl div{flex:1;background:var(--line);border-radius:2px 2px 0 0;min-width:2px;position:relative}
+#tl div.done{background:var(--mute)}
+#tl div.now{background:var(--lane)}
+textarea{width:100%;height:100px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace}
+select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+#log{color:var(--mute);font-size:13px;min-height:20px}
+.dbgbox{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;height:120px;overflow:auto;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;margin:8px 0 0}
+.warn{border-left:4px solid var(--stop)}
+.history-list{max-height:150px;overflow-y:auto;font-size:13px;margin-top:8px}
+.history-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--line)}
+audio{width:100%;margin-top:8px}
+iframe.spotify-frame{width:100%;height:80px;border:0;border-radius:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Tapis Coach Pro</h1>
+
+<div class="panel warn">
+<b>Sicurezza:</b> aggancia la chiave di sicurezza al polso e tieni sempre a portata il tasto di arresto fisico del tapis roulant.
+</div>
+
+<div class="panel">
+<div class="row">
+<button id="conn">Connetti Tapis Roulant</button>
+<button id="connHr" class="alt">Connetti Cardio (BLE)</button>
+<button id="connAll" class="alt">Mostra tutti</button>
+<button id="simBtn" class="alt">Modalità Prova</button>
+</div>
+<p id="log">Non connesso. Accendi il tapis roulant e premi Connetti.</p>
+</div>
+
+<div class="panel">
+<div class="stats">
+<div><div class="big" id="spd">0.0</div><div class="lbl">km/h (obj <span id="tgt">0.0</span>)</div></div>
+<div><div class="mid" id="dist">0.00</div><div class="lbl">km</div></div>
+<div><div class="mid" id="kcal">0</div><div class="lbl">kcal</div></div>
+<div><div class="mid" id="hr">–</div><div class="lbl">bpm <span id="zone"></span></div></div>
+</div>
+<div id="tl" aria-label="Profilo dell’allenamento"></div>
+<div class="row" style="justify-content:space-between">
+<span><b id="segName">Nessun allenamento</b><br><span class="lbl" id="segInfo"></span></span>
+<span class="lbl" id="tot"></span>
+</div>
+</div>
+
+<!-- NUOVA SEZIONE MUSICA E AUDIO -->
+<div class="panel">
+<b>🎵 Musica & Audio di Sottofondo</b>
+<div class="row" style="margin-top:8px">
+  <label class="lbl">Carica MP3: <input type="file" id="musicFiles" accept="audio/*" multiple style="display:none"></label>
+  <button class="alt" onclick="$('#musicFiles').click()">📁 Seleziona MP3</button>
+  <button class="alt" id="prevTrack">⏮</button>
+  <button id="playTrack">▶ Riproduci</button>
+  <button class="alt" id="nextTrack">⏭</button>
+  <span class="lbl" id="nowPlaying">Nessun brano selezionato</span>
+</div>
+<audio id="audioPlayer" controls style="display:none"></audio>
+
+<div style="margin-top:12px">
+  <span class="lbl">O usa la tua playlist Spotify:</span>
+  <div class="row" style="margin-top:4px">
+    <input id="spotifyUrl" type="text" placeholder="Incolla link Playlist/Album Spotify" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--line);background:var(--bg)">
+    <button class="alt" id="loadSpotify">Carica Spotify</button>
+  </div>
+  <div id="spotifyContainer"></div>
+</div>
+</div>
+
+<div class="panel">
+<div class="row">
+<select id="preset" aria-label="Allenamento"></select>
+<button id="start" disabled>Avvia</button>
+<button id="pause" class="alt" disabled>Pausa</button>
+<button id="skip" class="alt" disabled>Salta fase</button>
+<button id="save" class="alt">Salva</button>
+<button id="del" class="alt" disabled>Elimina</button>
+</div>
+<p class="lbl" style="margin:12px 0 4px">Formato fase per riga: <code>minuti km/h inclinazione%</code></p>
+<textarea id="plan" spellcheck="false"></textarea>
+<div class="row" style="margin-top:8px">
+<label>Velocità Max <input id="vmax" type="number" value="12" min="2" max="22" step="0.5" style="width:60px"> km/h</label>
+<label><input id="useInc" type="checkbox" checked> Inclinazione</label>
+<label>Età <input id="age" type="number" value="40" min="14" max="90" style="width:50px"></label>
+<label>Peso <input id="weight" type="number" value="70" min="30" max="180" style="width:55px"> kg</label>
+<label><input id="voice" type="checkbox" checked> Voce Coach</label>
+</div>
+</div>
+
+<div class="panel">
+<div class="row">
+<button class="alt" id="m1">−0.5 km/h</button>
+<button class="alt" id="p1">+0.5 km/h</button>
+<button class="alt" id="incDown">−1% Inc</button>
+<button class="alt" id="incUp">+1% Inc</button>
+<span class="lbl">Regolazione manuale</span>
+</div>
+</div>
+
+<div class="panel">
+<div class="row" style="justify-content:space-between">
+<b>Storico & Esportazione</b>
+<button id="exportTcx" class="alt" disabled>Esporta TCX / Strava</button>
+</div>
+<div class="history-list" id="historyList">Nessun allenamento registrato.</div>
+</div>
+
+<div class="panel">
+<b>Diagnostica comandi</b>
+<div class="row" style="margin-top:8px">
+<button class="alt" id="t0">1. Richiedi controllo</button>
+<button class="alt" id="t7">2. Start</button>
+<button class="alt" id="t3">3. Imposta 3 km/h</button>
+<button class="alt" id="t8">Stop</button>
+</div>
+<pre id="dbg" class="dbgbox"></pre>
+</div>
+
+<button class="stop" id="stop" disabled>STOP</button>
+
+<script>
+const $=s=>document.querySelector(s);
+const FTMS=0x1826,DATA=0x2acd,CP=0x2ad9,HR_SVC=0x180d,HR_DATA=0x2a37;
+const PRESETS={
+"Camminata progressiva (30 min)":"5 3.0 0\n5 4.0 1\n10 5.0 2\n5 4.0 1\n5 3.0 0",
+"Intervalli Hill & Speed (28 min)":"5 4.5 0\n2 7.0 2\n2 4.5 0\n2 7.5 3\n2 4.5 0\n2 8.0 4\n2 4.5 0\n5 4.0 0",
+"Piramide Salita (30 min)":"5 4.5 0\n5 5.5 2\n5 6.0 4\n5 6.0 6\n5 5.5 2\n5 4.5 0",
+"Personalizzato":"5 4.0 0\n10 6.0 1\n5 4.0 0"
+};
+let cp=null,dev=null,hrDev=null,sim=false,live={speed:0,dist:0,hr:0,inc:0,kcal:0},
+    plan=[],i=0,t=0,run=false,paused=false,timer=null,speedNow=0,incNow=0,trackSamples=[];
+
+/* --- Gestione Musica Integrata --- */
+let playlist=[], trackIndex=0;
+const audioPlayer=$('#audioPlayer');
+
+$('#musicFiles').onchange=e=>{
+  playlist=Array.from(e.target.files);
+  if(playlist.length){
+    trackIndex=0;
+    loadTrack(trackIndex);
+  }
+};
+
+function loadTrack(idx){
+  if(!playlist[idx])return;
+  audioPlayer.src=URL.createObjectURL(playlist[idx]);
+  $('#nowPlaying').textContent=playlist[idx].name;
+  audioPlayer.play();
+  $('#playTrack').textContent='⏸ Pausa';
+}
+
+$('#playTrack').onclick=()=>{
+  if(!audioPlayer.src&&playlist.length) loadTrack(0);
+  else if(audioPlayer.paused){
+    audioPlayer.play();
+    $('#playTrack').textContent='⏸ Pausa';
+  }else{
+    audioPlayer.pause();
+    $('#playTrack').textContent='▶ Riproduci';
+  }
+};
+
+$('#nextTrack').onclick=()=>{if(playlist.length){trackIndex=(trackIndex+1)%playlist.length;loadTrack(trackIndex)}};
+$('#prevTrack').onclick=()=>{if(playlist.length){trackIndex=(trackIndex-1+playlist.length)%playlist.length;loadTrack(trackIndex)}};
+audioPlayer.onended=()=>$('#nextTrack').click();
+
+/* Spotify Embed */
+$('#loadSpotify').onclick=()=>{
+  const url=$('#spotifyUrl').value.trim();
+  if(!url)return;
+  let embedUrl=url.replace('open.spotify.com/','open.spotify.com/embed/');
+  $('#spotifyContainer').innerHTML=`<iframe class="spotify-frame" src="${embedUrl}" allow="encrypted-media"></iframe>`;
+};
+
+/* Assistente vocale con Audio Ducking (abbassa la musica mentre parla) */
+const say=m=>{
+  if(!$('#voice').checked||!window.speechSynthesis)return;
+  const u=new SpeechSynthesisUtterance(m);
+  u.lang='it-IT';
+  
+  u.onstart=()=>{
+    if(audioPlayer&&!audioPlayer.paused) audioPlayer.volume=0.2; // Abbassa volume al 20%
+  };
+  u.onend=()=>{
+    if(audioPlayer) audioPlayer.volume=1.0; // Ripristina volume al 100%
+  };
+
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+};
+
+/* --- Persistenza dati & Profilo --- */
+const store={
+  get:k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')}catch(e){return{}}},
+  set:(k,o)=>{try{localStorage.setItem(k,JSON.stringify(o))}catch(e){}}
+};
+let saved=store.get('tc_plans');
+let historyData=store.get('tc_history');
+if(!Array.isArray(historyData)) historyData=[];
+
+function fillSel(sel){
+  const p=$('#preset');p.innerHTML='';
+  for(const k in PRESETS)p.add(new Option(k,k));
+  for(const k in saved)p.add(new Option('★ '+k,'s:'+k));
+  if(sel)p.value=sel;$('#del').disabled=!p.value.startsWith('s:');
+}
+const planOf=v=>v.startsWith('s:')?saved[v.slice(2)]:PRESETS[v];
+$('#preset').onchange=()=>{$('#plan').value=planOf($('#preset').value);$('#del').disabled=!$('#preset').value.startsWith('s:');draw()};
+fillSel();$('#plan').value=planOf($('#preset').value);
+$('#save').onclick=()=>{const n=prompt('Nome del programma:');if(!n)return;saved[n]=$('#plan').value;store.set('tc_plans',saved);fillSel('s:'+n)};
+$('#del').onclick=()=>{const k=$('#preset').value.slice(2);if(confirm('Eliminare “'+k+'”?')){delete saved[k];store.set('tc_plans',saved);fillSel();$('#plan').value=planOf($('#preset').value);draw()}};
+$('#plan').oninput=draw;
+
+const log=m=>$('#log').textContent=m;
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+function parsePlan(){
+  return $('#plan').value.split('\n').map(l=>l.trim().split(/[\s;,]+/).map(x=>parseFloat(x.replace(',','.')))).
+    filter(a=>a.length>=2&&a[0]>0&&a[1]>=0).map(a=>({m:a[0],v:a[1],i:a[2]||0}));
+}
+const vmax=()=>parseFloat($('#vmax').value)||12;
+
+function draw(){
+  const p=run?plan:parsePlan();
+  const top=Math.max(...p.map(s=>s.v),1);
+  $('#tl').innerHTML=p.map((s,k)=>`<div class="${run&&k<i?'done':run&&k==i?'now':''}" style="height:${Math.max(12,s.v/top*100)}%;flex:${s.m}" title="${s.m} min a ${s.v} km/h, inc ${s.i}%"></div>`).join('');
+  const tot=p.reduce((a,s)=>a+s.m*60,0);
+  const left=run?tot-p.slice(0,i).reduce((a,s)=>a+s.m*60,0)-t:tot;
+  $('#tot').textContent=p.length?(run?'Restano ':'Durata ')+fmt(left):'';
+  if(run&&plan[i]){
+    const s=plan[i],n=plan[i+1];
+    $('#segName').textContent=`Fase ${i+1} di ${plan.length}: ${s.v.toFixed(1)} km/h (${s.i}%)`;
+    $('#segInfo').textContent=`${fmt(s.m*60-t)} alla fine`+(n?` · poi ${n.v.toFixed(1)} km/h`:' · ultima fase');
+    $('#tgt').textContent=s.v.toFixed(1);
+  }
+}
+
+function renderHistory(){
+  if(!historyData.length){$('#historyList').innerHTML='Nessun allenamento completato.';return}
+  $('#historyList').innerHTML=historyData.slice().reverse().map(h=>`
+    <div class="history-item">
+      <span><b>${h.date}</b> - ${fmt(h.duration)}</span>
+      <span>${(h.dist/1000).toFixed(2)} km | ${Math.round(h.kcal)} kcal</span>
+    </div>
+  `).join('');
+}
+renderHistory();
+
+function render(){
+  $('#spd').textContent=live.speed.toFixed(1);
+  $('#dist').textContent=(live.dist/1000).toFixed(2);
+  $('#kcal').textContent=Math.round(live.kcal);
+  $('#hr').textContent=live.hr||'–';
+  const mx=220-(parseInt($('#age').value)||40),q=live.hr/mx,z=!live.hr?0:q<.6?1:q<.7?2:q<.8?3:q<.9?4:5;
+  $('#zone').textContent=z?'· z'+z:'';
+  if(z===5&&run&&!paused&&Date.now()-lastWarn>30000){lastWarn=Date.now();say('Frequenza cardiaca molto alta.')}
+}
+
+/* Bluetooth FTMS & HRM */
+async function connect(all){
+  try{
+    dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[FTMS]}:{filters:[{services:[FTMS]}]});
+    dev.addEventListener('gattserverdisconnected',()=>{log('Tapis roulant disconnesso.');endWorkout(false);ui(false)});
+    log('Connessione al tapis...');
+    const srv=await dev.gatt.connect(),svc=await srv.getPrimaryService(FTMS);
+    const d=await svc.getCharacteristic(DATA);
+    d.addEventListener('characteristicvaluechanged',parse);await d.startNotifications();
+    cp=await svc.getCharacteristic(CP);
+    cp.addEventListener('characteristicvaluechanged',e=>{
+      const v=e.target.value;
+      if(v.getUint8(0)===0x80){
+        const op=v.getUint8(1),res=v.getUint8(2);
+        dbg(`← risposta 0x${op.toString(16)}: ${RES[res]||res}`);
+        if(waiter&&waiter.op===op)waiter.res(res);
+      }
+    });
+    await cp.startNotifications().catch(()=>{});
+    await send([0]);
+    log('Connesso a '+(dev.name||'Tapis Roulant')+'.');ui(true);
+  }catch(e){log('Errore connessione tapis: '+e.message)}
+}
+
+async function connectHr(){
+  try{
+    hrDev=await navigator.bluetooth.requestDevice({filters:[{services:[HR_SVC]}]});
+    log('Connessione alla fascia cardio...');
+    const srv=await hrDev.gatt.connect(),svc=await srv.getPrimaryService(HR_SVC);
+    const c=await svc.getCharacteristic(HR_DATA);
+    c.addEventListener('characteristicvaluechanged',e=>{
+      const v=e.target.value,flags=v.getUint8(0);
+      live.hr=(flags&1)?v.getUint16(1,true):v.getUint8(1);
+      render();
+    });
+    await c.startNotifications();
+    log('Fascia cardio connessa!');
+  }catch(e){log('Errore cardio: '+e.message)}
+}
+
+function parse(e){
+  const d=e.target.value;let f=d.getUint16(0,true),o=2;
+  if(!(f&1)){live.speed=d.getUint16(o,true)/100;o+=2}
+  if(f&2)o+=2;
+  if(f&4){live.dist=d.getUint8(o)|d.getUint8(o+1)<<8|d.getUint8(o+2)<<16;o+=3}
+  if(f&8)o+=4; if(f&16)o+=4; if(f&32)o+=1; if(f&64)o+=1; if(f&128)o+=5;
+  if((f&256)&&!hrDev){live.hr=d.getUint8(o)}
+  render();
+}
+
+const RES={1:'OK',2:'non supportato',3:'parametro non valido',4:'operazione fallita',5:'controllo non consentito'};
+let waiter=null;
+async function send(b){
+  if(sim)return 1;
+  const v=new Uint8Array(b);
+  dbg('→ '+[...v].map(x=>x.toString(16).padStart(2,'0')).join(' '));
+  const w=new Promise(res=>{waiter={op:b[0],res};setTimeout(()=>res(null),1500)});
+  try{await(cp.writeValueWithResponse?cp.writeValueWithResponse(v):cp.writeValue(v))}catch(e){return null}
+  return await w;
+}
+
+const setSpeed=v=>{speedNow=Math.min(v,vmax());$('#tgt').textContent=speedNow.toFixed(1);const n=Math.round(speedNow*100);return send([2,n&255,n>>8])};
+const setInc=v=>{incNow=v;const n=Math.round(v*10);return send([3,n&255,n>>8])};
+
+/* --- Motore Allenamento --- */
+function ui(on){
+  $('#start').disabled=!on||run;$('#pause').disabled=!run;$('#skip').disabled=!run;$('#stop').disabled=!on;
+}
+
+async function startWorkout(){
+  plan=parsePlan();
+  if(!plan.length){log('Inserisci un programma valido.');return}
+  if(!confirm('Sei sulla pedana con la chiave agganciata?'))return;
+  i=0;t=0;run=true;paused=false;trackSamples=[];
+  live.kcal=0;live.dist=0;
+  say('Allenamento avviato');
+  await send([0]);await send([7]);
+  await new Promise(r=>setTimeout(r,800));
+  await applySeg();
+  timer=setInterval(tick,1000);
+  ui(true);draw();
+}
+
+async function applySeg(){
+  const s=plan[i];
+  say(`Fase ${i+1}: ${Math.min(s.v,vmax()).toString().replace('.',',')} km orari`);
+  await setSpeed(s.v);
+  if($('#useInc').checked) await setInc(s.i);
+}
+
+function calcKcalPerSec(speedKmh,incPct,weightKg){
+  if(speedKmh<=0)return 0;
+  const speedMpm=speedKmh*1000/60;
+  const grade=incPct/100;
+  const vo2=3.5+(0.2*speedMpm)+(0.9*speedMpm*grade);
+  return (vo2*weightKg/200)/60;
+}
+
+async function tick(){
+  if(paused)return;
+  t++;
+  const w=parseFloat($('#weight').value)||70;
+  live.kcal+=calcKcalPerSec(live.speed||speedNow,incNow,w);
+
+  trackSamples.push({
+    time:new Date().toISOString(),
+    dist:live.dist,
+    speed:live.speed||speedNow,
+    hr:live.hr,
+    kcal:live.kcal
+  });
+
+  if(plan[i+1]&&plan[i].m*60-t===10)say(`Tra dieci secondi cambio fase`);
+  if(sim){
+    live.speed+=Math.sign(speedNow-live.speed)*Math.min(.5,Math.abs(speedNow-live.speed));
+    live.dist+=live.speed/3.6;
+    render();
+  }
+
+  if(t>=plan[i].m*60){
+    i++;t=0;
+    if(i>=plan.length){endWorkout(true);return}
+    await applySeg();
+  }
+  draw();
+}
+
+async function endWorkout(done){
+  clearInterval(timer);
+  if(run) await send([8,1]);
+  run=false;paused=false;speedNow=0;
+  if(sim)live.speed=0,render();
+  $('#segName').textContent=done?'Allenamento completato!':'Allenamento interrotto';
+  $('#segInfo').textContent='';$('#tgt').textContent='0.0';
+  $('#exportTcx').disabled=!trackSamples.length;
+
+  if(trackSamples.length>10){
+    historyData.push({
+      date:new Date().toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),
+      duration:trackSamples.length,
+      dist:live.dist,
+      kcal:live.kcal
+    });
+    store.set('tc_history',historyData);
+    renderHistory();
+  }
+  ui(!!cp||sim);draw();
+}
+
+/* Esportazione file TCX */
+$('#exportTcx').onclick=()=>{
+  if(!trackSamples.length)return;
+  const startT=trackSamples[0].time;
+  const totSec=trackSamples.length;
+  let tcx=`<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+  <Activities>
+    <Activity Sport="Running">
+      <Id>${startT}</Id>
+      <Lap StartTime="${startT}">
+        <TotalTimeSeconds>${totSec}</TotalTimeSeconds>
+        <DistanceMeters>${live.dist.toFixed(2)}</DistanceMeters>
+        <Calories>${Math.round(live.kcal)}</Calories>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
+        <Track>\n`;
+
+  trackSamples.forEach(s=>{
+    tcx+=`          <Trackpoint>
+            <Time>${s.time}</Time>
+            <DistanceMeters>${s.dist.toFixed(2)}</DistanceMeters>
+            ${s.hr?`<HeartRateBpm><Value>${s.hr}</Value></HeartRateBpm>`:''}
+            <Extensions>
+              <TPX xmlns="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+                <Speed>${(s.speed/3.6).toFixed(2)}</Speed>
+              </TPX>
+            </Extensions>
+          </Trackpoint>\n`;
+  });
+
+  tcx+=`        </Track>
+      </Lap>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`;
+
+  const blob=new Blob([tcx],{type:'application/vnd.garmin.tcx+xml'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`tapis_coach_${new Date().toISOString().slice(0,10)}.tcx`;
+  a.click();
+};
+
+/* Eventi Interfaccia */
+$('#start').onclick=startWorkout;
+$('#stop').onclick=()=>endWorkout(false);
+$('#pause').onclick=async()=>{
+  paused=!paused;$('#pause').textContent=paused?'Riprendi':'Pausa';
+  if(paused)await send([8,2]);else{await send([7]);await new Promise(r=>setTimeout(r,800));await setSpeed(plan[i].v)}
+};
+$('#skip').onclick=()=>{t=plan[i].m*60-1};
+$('#m1').onclick=()=>run&&setSpeed(Math.max(1,speedNow-.5));
+$('#p1').onclick=()=>run&&setSpeed(speedNow+.5);
+$('#incDown').onclick=()=>run&&setInc(Math.max(0,incNow-1));
+$('#incUp').onclick=()=>run&&setInc(incNow+1);
+$('#conn').onclick=()=>connect(false);
+$('#connHr').onclick=connectHr;
+$('#connAll').onclick=()=>connect(true);
+$('#simBtn').onclick=()=>{sim=true;log('Modalità simulazione attiva.');ui(true)};
+
+try{
+  $('#age').value=localStorage.getItem('tc_age')||40;
+  $('#weight').value=localStorage.getItem('tc_weight')||70;
+}catch(e){}
+$('#age').onchange=()=>{try{localStorage.setItem('tc_age',$('#age').value)}catch(e){}};
+$('#weight').onchange=()=>{try{localStorage.setItem('tc_weight',$('#weight').value)}catch(e){}};
+let lastWarn=0;
+const dbg=m=>{const e=$('#dbg');e.textContent+=new Date().toLocaleTimeString()+' '+m+'\n';e.scrollTop=e.scrollHeight};
+$('#t0').onclick=()=>send([0]);$('#t7').onclick=()=>send([7]);$('#t8').onclick=()=>send([8,1]);
+$('#t3').onclick=()=>setSpeed(3);
+draw();
+</script>
+</body>
+</html>
