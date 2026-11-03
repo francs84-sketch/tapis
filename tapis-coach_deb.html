@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tapis Coach</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#14213d;--mute:#6b7280;--lane:#1d4ed8;--stop:#b91c1c;--line:#d9d5cb}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1626;--panel:#16233a;--ink:#eef2f8;--mute:#9aa7bd;--lane:#6ea0ff;--stop:#ef5350;--line:#2a3a57}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif;padding:16px;max-width:760px;margin-inline:auto}
+h1,.big{font-family:"Barlow Condensed",Impact,sans-serif}
+h1{font-size:32px;margin:4px 0 12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+button,select,textarea,input{font:inherit;color:inherit}
+button{background:var(--lane);color:#fff;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.stop{background:var(--stop);width:100%;font-size:20px;padding:16px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--lane);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stats{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;align-items:end}
+.big{font-size:84px;line-height:.9;font-weight:700}
+.mid{font-size:40px;line-height:1;font-weight:700}
+.lbl{color:var(--mute);font-size:13px}
+#tl{display:flex;align-items:flex-end;height:70px;gap:2px;margin:10px 0}
+#tl div{flex:1;background:var(--line);border-radius:2px 2px 0 0;min-width:2px}
+#tl div.done{background:var(--mute)}#tl div.now{background:var(--lane)}
+textarea{width:100%;height:120px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,monospace}
+select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+#log{color:var(--mute);font-size:13px;min-height:20px}
+.dbgbox{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;height:150px;overflow:auto;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;margin:8px 0 0}
+.warn{border-left:4px solid var(--stop)}
+</style>
+</head>
+<body>
+<h1>Tapis Coach</h1>
+
+<div class="panel warn">
+<b>Sicurezza:</b> aggancia la chiave di sicurezza al polso e tieni sempre a portata il tasto di arresto fisico del tapis roulant. L’app non sostituisce i comandi della macchina.
+</div>
+
+<div class="panel">
+<div class="row">
+<button id="conn">Connetti al tapis roulant</button>
+<button id="connAll" class="alt">Non lo trovo: mostra tutti i dispositivi</button>
+<button id="simBtn" class="alt">Prova senza tapis roulant</button>
+</div>
+<p id="log">Non connesso. Accendi il tapis roulant, tienilo fermo e premi Connetti (serve Chrome o Edge).</p>
+</div>
+
+<div class="panel">
+<div class="stats">
+<div><div class="big" id="spd">0.0</div><div class="lbl">km/h (obiettivo <span id="tgt">0.0</span>)</div></div>
+<div><div class="mid" id="dist">0.00</div><div class="lbl">km</div></div>
+<div><div class="mid" id="hr">–</div><div class="lbl">battiti/min <span id="zone"></span></div></div>
+</div>
+<div id="tl" aria-label="Profilo dell’allenamento"></div>
+<div class="row" style="justify-content:space-between">
+<span><b id="segName">Nessun allenamento</b><br><span class="lbl" id="segInfo"></span></span>
+<span class="lbl" id="tot"></span>
+</div>
+</div>
+
+<div class="panel">
+<div class="row">
+<select id="preset" aria-label="Allenamento"></select>
+<button id="start" disabled>Avvia</button>
+<button id="pause" class="alt" disabled>Pausa</button>
+<button id="skip" class="alt" disabled>Salta fase</button>
+<button id="save" class="alt">Salva</button>
+<button id="del" class="alt" disabled>Elimina</button>
+</div>
+<p class="lbl" style="margin:12px 0 4px">Una fase per riga: <code>minuti km/h inclinazione%</code> (l’inclinazione è facoltativa e viene inviata solo se la attivi qui sotto).</p>
+<textarea id="plan" spellcheck="false"></textarea>
+<div class="row" style="margin-top:8px">
+<label>Velocità massima <input id="vmax" type="number" value="10" min="2" max="16" step="0.5" style="width:70px"> km/h</label>
+<label><input id="useInc" type="checkbox"> Il mio modello ha l’inclinazione</label>
+<label>Età <input id="age" type="number" value="40" min="14" max="90" style="width:60px"></label>
+<label><input id="voice" type="checkbox" checked> Istruzioni vocali</label>
+</div>
+</div>
+
+<div class="panel">
+<div class="row">
+<button class="alt" id="m1">− 0,5 km/h</button>
+<button class="alt" id="p1">+ 0,5 km/h</button>
+<span class="lbl">Regolazione manuale della fase in corso</span>
+</div>
+</div>
+
+<div class="panel">
+<b>Diagnostica comandi</b>
+<div class="row" style="margin-top:8px">
+<button class="alt" id="t0">1. Richiedi controllo</button>
+<button class="alt" id="t7">2. Start</button>
+<button class="alt" id="t3">3. Imposta 3,0 km/h</button>
+<button class="alt" id="t8">Stop</button>
+</div>
+<pre id="dbg" class="dbgbox"></pre>
+</div>
+
+<button class="stop" id="stop" disabled>STOP</button>
+
+<script>
+const $=s=>document.querySelector(s);
+const FTMS=0x1826,DATA=0x2acd,CP=0x2ad9;
+const PRESETS={
+"Camminata progressiva (30 min)":"5 3.0\n5 4.0\n10 5.0\n5 4.0\n5 3.0",
+"Intervalli 1:1 (28 min)":"5 4.5\n1 7.0\n1 4.5\n1 7.5\n1 4.5\n1 8.0\n1 4.5\n1 7.5\n1 4.5\n1 7.0\n1 4.5\n5 4.0",
+"Piramide (30 min)":"5 4.5\n4 6.0\n4 7.0\n4 8.0\n4 7.0\n4 6.0\n5 4.5",
+"Fartlek (25 min)":"5 5.0\n2 8.0\n3 5.5\n1 9.0\n3 5.5\n2 8.5\n4 5.0\n5 4.0",
+"Personalizzato":"5 4.0\n10 6.0\n5 4.0"
+};
+let cp=null,dev=null,sim=false,live={speed:0,dist:0,hr:0},
+    plan=[],i=0,t=0,run=false,paused=false,timer=null,speedNow=0;
+
+const store={get:()=>{try{return JSON.parse(localStorage.getItem('tc_plans')||'{}')}catch(e){return{}}},set:o=>{try{localStorage.setItem('tc_plans',JSON.stringify(o))}catch(e){log('Salvataggio non disponibile in questo browser.')}}};
+let saved=store.get();
+const planOf=v=>v.startsWith('s:')?saved[v.slice(2)]:PRESETS[v];
+function fillSel(sel){const p=$('#preset');p.innerHTML='';for(const k in PRESETS)p.add(new Option(k,k));for(const k in saved)p.add(new Option('★ '+k,'s:'+k));if(sel)p.value=sel;$('#del').disabled=!p.value.startsWith('s:')}
+$('#preset').onchange=()=>{$('#plan').value=planOf($('#preset').value);$('#del').disabled=!$('#preset').value.startsWith('s:');draw()};
+fillSel();$('#plan').value=planOf($('#preset').value);
+$('#save').onclick=()=>{const n=prompt('Nome del programma:');if(!n)return;saved[n]=$('#plan').value;store.set(saved);fillSel('s:'+n)};
+$('#del').onclick=()=>{const k=$('#preset').value.slice(2);if(confirm('Eliminare “'+k+'”?')){delete saved[k];store.set(saved);fillSel();$('#plan').value=planOf($('#preset').value);draw()}};
+$('#plan').oninput=draw;
+
+const log=m=>$('#log').textContent=m;
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+function parsePlan(){
+  return $('#plan').value.split('\n').map(l=>l.trim().split(/[\s;,]+/).map(x=>parseFloat(x.replace(',','.')))).
+    filter(a=>a.length>=2&&a[0]>0&&a[1]>=0).map(a=>({m:a[0],v:a[1],i:a[2]||0}));
+}
+const vmax=()=>parseFloat($('#vmax').value)||8;
+
+function draw(){
+  const p=run?plan:parsePlan();
+  const top=Math.max(...p.map(s=>s.v),1);
+  $('#tl').innerHTML=p.map((s,k)=>`<div class="${run&&k<i?'done':run&&k==i?'now':''}" style="height:${Math.max(8,s.v/top*100)}%;flex:${s.m}" title="${s.m} min a ${s.v} km/h"></div>`).join('');
+  const tot=p.reduce((a,s)=>a+s.m*60,0);
+  const left=run?tot-p.slice(0,i).reduce((a,s)=>a+s.m*60,0)-t:tot;
+  $('#tot').textContent=p.length?(run?'Restano ':'Durata ')+fmt(left):'';
+  if(run&&plan[i]){
+    const s=plan[i],n=plan[i+1];
+    $('#segName').textContent=`Fase ${i+1} di ${plan.length}: ${s.v.toFixed(1)} km/h`;
+    $('#segInfo').textContent=`${fmt(s.m*60-t)} alla fine`+(n?` · poi ${n.v.toFixed(1)} km/h`:' · ultima fase');
+    $('#tgt').textContent=s.v.toFixed(1);
+  }
+}
+function render(){
+  $('#spd').textContent=live.speed.toFixed(1);
+  $('#dist').textContent=(live.dist/1000).toFixed(2);
+  $('#hr').textContent=live.hr||'–';
+  const mx=220-(parseInt($('#age').value)||40),q=live.hr/mx,z=!live.hr?0:q<.6?1:q<.7?2:q<.8?3:q<.9?4:5;
+  $('#zone').textContent=z?'· zona '+z:'';
+  if(z===5&&run&&!paused&&Date.now()-lastWarn>30000){lastWarn=Date.now();say('Frequenza cardiaca alta. Rallenta.')}
+}
+
+/* --- Bluetooth FTMS --- */
+async function connect(all){
+  try{
+    dev=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[FTMS]}:{filters:[{services:[FTMS]}]});
+    dev.addEventListener('gattserverdisconnected',()=>{log('Connessione persa: allenamento interrotto.');endWorkout(false);ui(false)});
+    log('Connessione a '+(dev.name||'dispositivo')+'…');
+    const srv=await dev.gatt.connect(),svc=await srv.getPrimaryService(FTMS);
+    const d=await svc.getCharacteristic(DATA);
+    d.addEventListener('characteristicvaluechanged',parse);await d.startNotifications();
+    cp=await svc.getCharacteristic(CP);
+    cp.addEventListener('characteristicvaluechanged',e=>{const v=e.target.value;
+      if(v.getUint8(0)===0x80){const op=v.getUint8(1),res=v.getUint8(2);
+        dbg(`← risposta a 0x${op.toString(16)}: ${RES[res]||res}`);
+        if(res!==1)log(`Comando 0x${op.toString(16)} rifiutato: ${RES[res]||res}`);
+        if(waiter&&waiter.op===op)waiter.res(res)}});
+    await cp.startNotifications().catch(()=>{});
+    try{const sr=await(await svc.getCharacteristic(0x2ad4)).readValue();dbg(`Velocità min ${sr.getUint16(0,true)/100}, max ${sr.getUint16(2,true)/100}, passo ${sr.getUint16(4,true)/100} km/h`)}catch(e){dbg('Intervallo velocità non disponibile')}
+    const rc=await send([0]);if(rc===null)dbg('Nessuna risposta alla richiesta di controllo');
+    log('Connesso a '+(dev.name||'tapis roulant')+'. Pronto.');ui(true);
+  }catch(e){
+    log(e.name==='NotFoundError'?'Nessun dispositivo scelto. Se non compare, riprova con “mostra tutti i dispositivi”.':'Errore: '+e.message);
+  }
+}
+function parse(e){
+  const d=e.target.value;let f=d.getUint16(0,true),o=2;
+  if(!(f&1)){live.speed=d.getUint16(o,true)/100;o+=2}
+  if(f&2)o+=2;
+  if(f&4){live.dist=d.getUint8(o)|d.getUint8(o+1)<<8|d.getUint8(o+2)<<16;o+=3}
+  if(f&8)o+=4; if(f&16)o+=4; if(f&32)o+=1; if(f&64)o+=1; if(f&128)o+=5;
+  if(f&256){live.hr=d.getUint8(o)}
+  render();
+}
+const RES={1:'OK',2:'non supportato',3:'parametro non valido',4:'operazione fallita',5:'controllo non consentito'};
+let waiter=null;
+async function send(b){
+  if(sim)return 1;
+  const v=new Uint8Array(b);
+  dbg('→ '+[...v].map(x=>x.toString(16).padStart(2,'0')).join(' '));
+  const w=new Promise(res=>{waiter={op:b[0],res};setTimeout(()=>res(null),1500)});
+  try{await(cp.writeValueWithResponse?cp.writeValueWithResponse(v):cp.writeValue(v))}catch(e){dbg('ERRORE di scrittura: '+e.message);log('Errore invio comando: '+e.message);return null}
+  const out=await w;if(out===null)dbg('(nessuna risposta dal tapis entro 1,5 s)');return out;
+}
+const setSpeed=v=>{speedNow=Math.min(v,vmax());$('#tgt').textContent=speedNow.toFixed(1);const n=Math.round(speedNow*100);return send([2,n&255,n>>8])};
+const setInc=v=>{const n=Math.round(v*10)&0xffff;return send([3,n&255,n>>8])};
+
+/* --- Motore allenamento --- */
+function ui(on){
+  $('#start').disabled=!on||run;$('#pause').disabled=!run;$('#skip').disabled=!run;$('#stop').disabled=!on;
+}
+async function startWorkout(){
+  plan=parsePlan();
+  if(!plan.length){log('Il programma è vuoto o non valido.');return}
+  if(plan.some(s=>s.v>vmax())&&!confirm('Alcune fasi superano la velocità massima impostata: verranno limitate a '+vmax()+' km/h. Continuare?'))return;
+  if(!confirm('Sei sulla pedana, con la chiave di sicurezza al polso? Il nastro partirà.'))return;
+  i=0;t=0;run=true;paused=false;
+  say('Si parte');
+  await send([0]);
+  await send([7]);
+  await new Promise(r=>setTimeout(r,800));
+  await applySeg();
+  timer=setInterval(tick,1000);
+  ui(true);draw();
+}
+async function applySeg(){
+  const s=plan[i];say(`Fase ${i+1}: ${Math.min(s.v,vmax()).toString().replace('.',',')} chilometri orari`);await setSpeed(s.v);
+  if($('#useInc').checked)await setInc(s.i);
+}
+async function tick(){
+  if(paused)return;
+  t++;
+  if(plan[i+1]&&plan[i].m*60-t===10)say(`Tra dieci secondi: ${Math.min(plan[i+1].v,vmax()).toString().replace('.',',')} chilometri orari`);
+  if(sim){live.speed+=Math.sign(speedNow-live.speed)*Math.min(.5,Math.abs(speedNow-live.speed));live.dist+=live.speed/3.6;render()}
+  if(t>=plan[i].m*60){
+    i++;t=0;
+    if(i>=plan.length){endWorkout(true);return}
+    await applySeg();
+  }
+  draw();
+}
+async function endWorkout(done){
+  clearInterval(timer);
+  if(run){await send([8,1])}
+  run=false;paused=false;speedNow=0;
+  if(sim)live.speed=0,render();
+  $('#segName').textContent=done?'Allenamento completato':'Allenamento interrotto';
+  $('#segInfo').textContent='';$('#tgt').textContent='0.0';
+  $('#pause').textContent='Pausa';
+  ui(!!cp||sim);draw();
+}
+$('#start').onclick=startWorkout;
+$('#stop').onclick=()=>endWorkout(false);
+$('#pause').onclick=async()=>{
+  paused=!paused;$('#pause').textContent=paused?'Riprendi':'Pausa';
+  if(paused)await send([8,2]);else{await send([7]);await new Promise(r=>setTimeout(r,800));await setSpeed(plan[i].v)}
+};
+$('#skip').onclick=()=>{t=plan[i].m*60-1};
+$('#m1').onclick=()=>run&&setSpeed(Math.max(1,speedNow-.5));
+$('#p1').onclick=()=>run&&setSpeed(speedNow+.5);
+$('#conn').onclick=()=>connect(false);
+$('#connAll').onclick=()=>connect(true);
+$('#simBtn').onclick=()=>{sim=true;log('Modalità prova: nessun comando viene inviato.');ui(true)};
+const say=m=>{if(!$('#voice').checked||!window.speechSynthesis)return;const u=new SpeechSynthesisUtterance(m);u.lang='it-IT';speechSynthesis.cancel();speechSynthesis.speak(u)};
+try{$('#age').value=localStorage.getItem('tc_age')||40}catch(e){}
+$('#age').onchange=()=>{try{localStorage.setItem('tc_age',$('#age').value)}catch(e){}};
+let lastWarn=0;
+const dbg=m=>{const e=$('#dbg');e.textContent+=new Date().toLocaleTimeString()+' '+m+'\n';e.scrollTop=e.scrollHeight};
+$('#t0').onclick=()=>send([0]);$('#t7').onclick=()=>send([7]);$('#t8').onclick=()=>send([8,1]);
+$('#t3').onclick=()=>setSpeed(3);
+if(!navigator.bluetooth)log('Questo browser non supporta Web Bluetooth. Usa Chrome o Edge su Android, Windows, macOS o Linux; su iPhone e iPad usa il browser Bluefy.');
+draw();
+</script>
+</body>
+</html>
