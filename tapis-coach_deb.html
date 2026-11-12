@@ -68,37 +68,39 @@
         l.scrollTop = l.scrollHeight;
     }
 
-    async function connectBT() {
-        try {
-            log("Ricerca tapis roulant FTMS...");
-            bluetoothDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ services: ['fitness_machine'] }]
-            });
-            
-            treadmillServer = await bluetoothDevice.gatt.connect();
-            log("Connesso al server GATT. Ottengo il servizio...");
-            
-            const service = await treadmillServer.getPrimaryService('fitness_machine');
-            
-            // Notifiche dati tapis roulant (FTMS)
-            const notifyChar = await service.getCharacteristic('treadmill_data');
-            await notifyChar.startNotifications();
-            notifyChar.addEventListener('characteristicvaluechanged', parse);
+   async function connectBT() {
+    try {
+        log("Ricerca tapis roulant FTMS...");
+        // Usiamo l'UUID ufficiale standard anziché la stringa testuale
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [0x1826] }],
+            optionalServices: [0x1826]
+        });
+        
+        log("Dispositivo selezionato. Connessione GATT in corso...");
+        treadmillServer = await bluetoothDevice.gatt.connect();
+        
+        log("Connesso al server. Ottengo il servizio fitness...");
+        const service = await treadmillServer.getPrimaryService(0x1826);
+        
+        // Notifiche dati tapis roulant (FTMS)
+        const notifyChar = await service.getCharacteristic('treadmill_data');
+        await notifyChar.startNotifications();
+        notifyChar.addEventListener('characteristicvaluechanged', parse);
 
-            // Caratteristica per inviare i comandi di controllo
-            controlPointChar = await service.getCharacteristic('fitness_machine_control_point');
-            await controlPointChar.startNotifications();
-            
-            document.getElementById('status').innerText = "Stato: Connesso con successo!";
-            log("Tapis roulant pronto!");
-            
-            // Richiedi controllo
-            let encoder = new TextEncoder();
-            await controlPointChar.writeValue(new Uint8Array([0x00]));
-        } catch(err) {
-            log("Errore connessione: " + err);
-        }
+        // Caratteristica per inviare i comandi di controllo
+        controlPointChar = await service.getCharacteristic('fitness_machine_control_point');
+        await controlPointChar.startNotifications();
+        
+        document.getElementById('status').innerText = "Stato: Connesso con successo!";
+        log("Tapis roulant pronto!");
+        
+        // Richiedi controllo
+        await controlPointChar.writeValue(new Uint8Array([0x00]));
+    } catch(err) {
+        log("Errore connessione: " + err);
     }
+}
 
     function parse(e) {
         const d = e.target.value;
