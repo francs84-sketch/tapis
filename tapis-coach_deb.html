@@ -344,7 +344,8 @@ function parse(e){
   if(!(f&1)){live.speed=d.getUint16(o,true)/100;o+=2}
   if(f&2)o+=2;
   if(f&4){live.dist=d.getUint8(o)|d.getUint8(o+1)<<8|d.getUint8(o+2)<<16;o+=3}
-  if((f&256)&&!hrDev){live.hr=d.getUint8(o)}
+  // Vecchia riga disattivata: if((f&256)&&!hrDev){live.hr=d.getUint8(o)}
+  if(f&256){live.hr=d.getUint8(o)}
   render();
 }
 
