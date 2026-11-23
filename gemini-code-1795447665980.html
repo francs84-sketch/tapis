@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test BLE Bluefy iPad</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; padding: 20px; }
+        button { display: block; width: 100%; padding: 15px; margin: 10px 0; font-size: 16px; font-weight: bold; border: none; border-radius: 8px; background: #007aff; color: #fff; }
+        #log { background: #000; color: #0f0; font-family: monospace; padding: 10px; height: 220px; overflow-y: scroll; font-size: 12px; border-radius: 6px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h3>Test BLE Bluefy (v1)</h3>
+    <button onclick="test1()">Test A: acceptAllDevices solo</button>
+    <button onclick="test2()">Test B: filters heart_rate</button>
+    <button onclick="test3()">Test C: filters 0000180d-...</button>
+    <button onclick="test4()">Test D: filters 0x180D</button>
+    <div id="log">Pronto per il test...</div>
+
+<script>
+    function log(msg) {
+        var l = document.getElementById('log');
+        l.innerHTML += "<br>" + msg;
+        l.scrollTop = l.scrollHeight;
+    }
+
+    async function test1() {
+        log("--- Avvio Test A (acceptAllDevices: true) ---");
+        try {
+            var dev = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true
+            });
+            log("OK Test A: " + (dev.name || dev.id));
+        } catch (e) {
+            log("Errore Test A: " + e);
+        }
+    }
+
+    async function test2() {
+        log("--- Avvio Test B (services: ['heart_rate']) ---");
+        try {
+            var dev = await navigator.bluetooth.requestDevice({
+                filters: [{ services: ['heart_rate'] }]
+            });
+            log("OK Test B: " + (dev.name || dev.id));
+        } catch (e) {
+            log("Errore Test B: " + e);
+        }
+    }
+
+    async function test3() {
+        log("--- Avvio Test C (UUID completo 128-bit) ---");
+        try {
+            var dev = await navigator.bluetooth.requestDevice({
+                filters: [{ services: ['0000180d-0000-1000-8000-00805f9b34fb'] }]
+            });
+            log("OK Test C: " + (dev.name || dev.id));
+        } catch (e) {
+            log("Errore Test C: " + e);
+        }
+    }
+
+    async function test4() {
+        log("--- Avvio Test D (0x180D) ---");
+        try {
+            var dev = await navigator.bluetooth.requestDevice({
+                filters: [{ services: [0x180D] }]
+            });
+            log("OK Test D: " + (dev.name || dev.id));
+        } catch (e) {
+            log("Errore Test D: " + e);
+        }
+    }
+</script>
+</body>
+</html>
